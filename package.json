@@ -1,0 +1,18 @@
+{
+  "name": "generator",
+  "version": "0.0.0",
+  "description": "Generate a working application from a FlowML project",
+  "main": "generator.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "UML",
+    "code",
+    "generation",
+    "software",
+    "engineering"
+  ],
+  "author": "Ryan Swart",
+  "license": "BSD-2-Clause"
+}
