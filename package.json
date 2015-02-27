@@ -14,5 +14,8 @@
     "engineering"
   ],
   "author": "Ryan Swart",
-  "license": "BSD-2-Clause"
+  "license": "BSD-2-Clause",
+  "dependencies": {
+    "commander": "~2.6.0"
+  }
 }
