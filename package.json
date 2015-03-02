@@ -16,6 +16,7 @@
   "author": "Ryan Swart",
   "license": "BSD-2-Clause",
   "dependencies": {
-    "commander": "~2.6.0"
+    "commander": "~2.6.0",
+    "jointjs": "~0.8.0"
   }
 }

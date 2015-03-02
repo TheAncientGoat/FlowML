@@ -11,12 +11,13 @@ function FlowGen() {
     var Lazy = require('lazy.js');
     var flowGen = {};
 
-    flowGen.generate = function (path) {
+    flowGen.load = function (path,then) {
         var readDirFiles = require('read-dir-files');
         readDirFiles.read(path, 'UTF-8', function (err, files) {
             if (err) return console.dir(err);
             //console.dir(files);
-            flowGen.init(files)
+            then(flowGen.init(files));
+            //then(files);
         });
     };
 
@@ -312,6 +313,121 @@ function FlowGen() {
         console.log(tree.children);*/
         return flowGen.templateElement(tree);
     };
+    flowGen.depth=0;
+    flowGen.sibs=0;
+    flowGen.sibcount = [];
+
+    flowGen.makeUMLRep = function(element){
+
+        if(flowGen.sibcount[flowGen.sibs] && flowGen.sibcount[flowGen.sibs][flowGen.depth]) {
+            ++flowGen.depth;
+        }else{
+            flowGen.sibcount[flowGen.sibs] = [];
+            flowGen.depth = 0;
+        }
+
+
+        flowGen.sibcount[flowGen.sibs][flowGen.depth] = flowGen.sibcount[flowGen.sibs][flowGen.depth] || 0;
+        flowGen.sibcount[flowGen.sibs][flowGen.depth] = flowGen.sibcount[flowGen.sibs][flowGen.depth] + 1;
+        while(flowGen.sibcount[flowGen.sibs][flowGen.depth]>1){
+            //flowGen.depth =
+            ++flowGen.depth;
+        }
+        //else{
+        //}
+
+        var rep = {
+            position: {x:flowGen.depth*250, y:flowGen.sibs*200},
+            size:{width:240,height:100},
+            name: element.name,
+            attributes: Lazy(element.data).pairs().map(function(data){return data[0]+": "+data[1]}).toArray(),
+            methods: Lazy(element.implementation).pairs().map(function(imp){return imp[0]}).toArray()//function(imp){Lazy(imp).pairs().map(function)})
+        };
+        return element.name.split('.')[0]+": new uml.Class("+JSON.stringify(rep)+'),\n'
+    };
+
+    flowGen.addUMLReps = function(tree){
+        flowGen.sibs = 1;
+        for (var child in tree.children) {
+            if(tree.children.hasOwnProperty(child)){
+                flowGen.addUMLReps(tree.children[child]);
+                flowGen.sibs++;
+
+            }
+        }
+        //flowGen.depth++;
+
+        return flowGen.JSOutput= flowGen.JSOutput + flowGen.makeUMLRep(tree);
+    };
+
+    flowGen.linkElement=function(element){
+        var links = "";
+        Lazy(element.context).pairs().each(function(context){
+            if(context[1].forEach){
+                context[1].forEach(function(link){
+                    var link = '{source:{id:classes.'+element.name.split('.')[0]+'.id},target:{id:classes.'+link+'.id}}';
+                    links = links + 'new uml.Implementation('+link+'),\n';
+                })
+            }else if(context[1] !=''){
+                var link = '{source:{id:classes.'+element.name.split('.')[0]+'.id},target:{id:classes.'+context+'.id}}';
+                links = links + 'new uml.Implementation('+link+'),\n';
+            }
+
+        });
+        if(element.extends){
+            var link = '{source:{id:classes.'+element.name.split('.')[0]+'.id},target:{id:classes.'+
+                element.extends.split('.')[0]+'.id}}';
+
+            links = links + 'new uml.Generalization('+link+'),\n';
+        }
+
+        if(element.children){
+            Lazy(element.children).pairs().each(function(child){
+                var link = '{source:{id:classes.'+element.name.split('.')[0]+'.id},target:{id:classes.'+child[1].name.split('.')[0]+'.id}}';
+                links = links + 'new uml.Generalization('+link+'),\n';
+            })
+        }
+        return links;
+    };
+
+    flowGen.makeLinks=function(tree){
+        for (var child in tree.children) {
+            if(tree.children.hasOwnProperty(child)){
+                flowGen.makeLinks(tree.children[child]);
+            }
+        }
+
+        return flowGen.JSOutput= flowGen.JSOutput + flowGen.linkElement(tree);
+    };
+
+    flowGen.visualize = function(tree){
+        flowGen.HTMLOutput = "<html><head><script src='http://www.jointjs.com/downloads/joint.min.js'></script>" +
+        "<script src='http://www.jointjs.com/downloads/joint.shapes.uml.min.js'></script> </head>" +
+        "<body><div id='paper'></div></body></html>"
+        flowGen.JSOutput = "var graph = new joint.dia.Graph; var paper = new joint.dia.Paper({"+
+        "el: $('#paper'),"+
+            "width: 1600,"+
+            "height: 1600,"+
+            "gridSize: 1,"+
+            "model: graph"+
+        "});"+
+        "var uml = joint.shapes.uml;"+
+        "var classes = {\n"
+
+        flowGen.addUMLReps(tree);
+        Lazy(flowGen.Prototypes).pairs()
+            .each(function(type){
+                Lazy(type[1]).pairs().each(function(prototype){
+                    flowGen.sibs++
+                    flowGen.JSOutput= flowGen.JSOutput+flowGen.makeUMLRep(prototype[1]);
+                });
+            });
+
+        flowGen.JSOutput = flowGen.JSOutput + "\n}; _.each(classes,function(c){graph.addCell(c)});\n" +
+        "var relations=[\n";
+        flowGen.makeLinks(tree);
+        flowGen.JSOutput = flowGen.JSOutput + "\n]; _.each(relations,function(r){graph.addCell(r)});";
+    };
 
     flowGen.init = function (project) {
         var Prototypes = flowGen.Prototypes;
@@ -351,9 +467,16 @@ function FlowGen() {
             }
         }
 
-        var res = flowGen.genSource(flowGen.buildContext(flowGen.templateTree(flowGen.extendTree(tree, Prototypes))));
+        //var res =
         //console.log(flowGen.HTMLOutput);
         //console.log(flowGen.JSOutput);
+
+        return tree;
+
+    };
+
+    flowGen.generate = function(tree){
+        var res = flowGen.genSource(flowGen.buildContext(flowGen.templateTree(flowGen.extendTree(tree, flowGen.Prototypes))));
         flowGen.HTMLOutput = flowGen.HTMLOutput + '</html>';
         return res;
 
@@ -366,8 +489,9 @@ exports.FlowGen = FlowGen;
 
 var flowGen = new FlowGen();
 
-flowGen.generate('/home/ryan/Programming/FlowML/model/example/');
-
+flowGen.load('/home/ryan/Programming/FlowML/model/example/',flowGen.visualize);
+//flowGen.visualize(flowGen.init());
+//flowGen.generate(flowGen.init());
 var http = require('http');
 
 http.createServer(function (req, res) {
